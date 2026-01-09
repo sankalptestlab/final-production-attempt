@@ -1,0 +1,477 @@
+{
+  "name": "CAM Processing Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trigger-cam-build",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - CAM Build Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "cam-build-trigger"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract data from Francis webhook\nconst conversationId = $input.item.json.conversation_id;\nconst customerId = $input.item.json.customer_id;\nconst extractedData = $input.item.json.extracted_data;\n\nreturn {\n  json: {\n    conversation_id: conversationId,\n    customer_id: customerId,\n    gstin: extractedData.gstin,\n    pan: extractedData.pan,\n    consent_obtained: extractedData.consent_obtained,\n    loan_amount_lakhs: extractedData.loan_amount_lakhs,\n    loan_purpose: extractedData.loan_purpose,\n    tenure_months: extractedData.tenure_months,\n    collateral_available: extractedData.collateral_available,\n    customer_priority: extractedData.customer_priority\n  }\n};"
+      },
+      "id": "extract-params",
+      "name": "Extract Parameters",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/famescore-report",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "gstin",
+              "value": "={{ $json.gstin }}"
+            },
+            {
+              "name": "pan",
+              "value": "={{ $json.pan }}"
+            },
+            {
+              "name": "consent_obtained",
+              "value": true
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-famescore",
+      "name": "Call FameScore API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/pull-credit-bureau",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "pan",
+              "value": "={{ $json.pan }}"
+            },
+            {
+              "name": "consent_obtained",
+              "value": "={{ $json.consent_obtained }}"
+            },
+            {
+              "name": "bureau_type",
+              "value": "commercial"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-commercial-bureau",
+      "name": "Call Commercial Credit Bureau",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/lookup-gst-basic",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "gstin",
+              "value": "={{ $json.gstin }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-gst-lookup",
+      "name": "GST Basic Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8001/lookup-udyam",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "udyam_number",
+              "value": "UDYAM-DL-00-0012345"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-udyam-lookup",
+      "name": "Udyam Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll"
+      },
+      "id": "merge-data",
+      "name": "Merge All Data Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Combine all data sources into Nikita request format\nconst originalParams = $input.item(0).json;\nconst fameScoreData = $input.item(1).json.data || {};\nconst creditBureauData = $input.item(2).json.data || {};\nconst gstData = $input.item(3).json.data || {};\nconst udyamData = $input.item(4).json.data || {};\n\nreturn {\n  json: {\n    conversation_id: originalParams.conversation_id,\n    customer_id: originalParams.customer_id,\n    famescore_report: fameScoreData,\n    credit_bureau: creditBureauData,\n    gst_data: gstData,\n    udyam_data: udyamData,\n    loan_request: {\n      amount_lakhs: originalParams.loan_amount_lakhs,\n      purpose: originalParams.loan_purpose,\n      tenure_months: originalParams.tenure_months,\n      collateral_available: originalParams.collateral_available\n    },\n    customer_preferences: {\n      priority: originalParams.customer_priority,\n      lender_preference: \"any\"\n    }\n  }\n};"
+      },
+      "id": "format-nikita-request",
+      "name": "Format Nikita Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/build-cam",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "conversation_id",
+              "value": "={{ $json.conversation_id }}"
+            },
+            {
+              "name": "customer_id",
+              "value": "={{ $json.customer_id }}"
+            },
+            {
+              "name": "famescore_report",
+              "value": "={{ JSON.stringify($json.famescore_report) }}"
+            },
+            {
+              "name": "credit_bureau",
+              "value": "={{ JSON.stringify($json.credit_bureau) }}"
+            },
+            {
+              "name": "gst_data",
+              "value": "={{ JSON.stringify($json.gst_data) }}"
+            },
+            {
+              "name": "udyam_data",
+              "value": "={{ JSON.stringify($json.udyam_data) }}"
+            },
+            {
+              "name": "loan_request",
+              "value": "={{ JSON.stringify($json.loan_request) }}"
+            },
+            {
+              "name": "customer_preferences",
+              "value": "={{ JSON.stringify($json.customer_preferences) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-nikita",
+      "name": "Call Nikita - Build CAM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Save CAM to database\nconst camData = $input.item.json;\n\n// In production, this would be a Supabase node\n// For now, return the cam_id for the next step\nreturn {\n  json: {\n    cam_id: camData.cam_id,\n    cam_data: camData.cam_data,\n    conversation_id: camData.conversation_id\n  }\n};"
+      },
+      "id": "save-cam-db",
+      "name": "Save CAM to Database",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8003/assess",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "cam_id",
+              "value": "={{ $json.cam_id }}"
+            },
+            {
+              "name": "business_profile",
+              "value": "={{ JSON.stringify($json.cam_data.business_profile) }}"
+            },
+            {
+              "name": "financial_metrics",
+              "value": "={{ JSON.stringify($json.cam_data.financial_summary) }}"
+            },
+            {
+              "name": "credit_profile",
+              "value": "={{ JSON.stringify($json.cam_data.credit_profile) }}"
+            },
+            {
+              "name": "compliance",
+              "value": "={{ JSON.stringify($json.cam_data.compliance) }}"
+            },
+            {
+              "name": "loan_request",
+              "value": "={{ JSON.stringify($json.cam_data.loan_request) }}"
+            },
+            {
+              "name": "customer_preferences",
+              "value": "={{ JSON.stringify($json.cam_data.customer_preferences) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-kesha",
+      "name": "Call Kesha - Assess & Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Save assessment to database and notify Francis\nconst assessment = $input.item.json;\n\n// In production, save to assessment_results table\n// Then notify Francis to update conversation\n\nreturn {\n  json: {\n    conversation_id: $node[\"Save CAM to Database\"].json.conversation_id,\n    assessment_id: assessment.assessment_id,\n    overall_eligibility: assessment.overall_eligibility,\n    max_eligible_amount: assessment.max_eligible_amount_lakhs,\n    top_lenders: assessment.lender_matches.slice(0, 3).map(l => l.lender_name),\n    customer_report: assessment.customer_report\n  }\n};"
+      },
+      "id": "finalize-assessment",
+      "name": "Finalize Assessment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/receive-assessment",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "conversation_id",
+              "value": "={{ $json.conversation_id }}"
+            },
+            {
+              "name": "assessment_id",
+              "value": "={{ $json.assessment_id }}"
+            },
+            {
+              "name": "overall_eligibility",
+              "value": "={{ $json.overall_eligibility }}"
+            },
+            {
+              "name": "max_eligible_amount",
+              "value": "={{ $json.max_eligible_amount }}"
+            },
+            {
+              "name": "top_lenders",
+              "value": "={{ JSON.stringify($json.top_lenders) }}"
+            },
+            {
+              "name": "customer_report",
+              "value": "={{ JSON.stringify($json.customer_report) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "notify-francis",
+      "name": "Notify Francis - Send to Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - CAM Build Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Parameters": {
+      "main": [
+        [
+          {
+            "node": "Call FameScore API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call Commercial Credit Bureau",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GST Basic Lookup",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Udyam Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call FameScore API": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Call Commercial Credit Bureau": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "GST Basic Lookup": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Udyam Lookup": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data Sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Merge All Data Sources": {
+      "main": [
+        [
+          {
+            "node": "Format Nikita Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Nikita Request": {
+      "main": [
+        [
+          {
+            "node": "Call Nikita - Build CAM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Nikita - Build CAM": {
+      "main": [
+        [
+          {
+            "node": "Save CAM to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save CAM to Database": {
+      "main": [
+        [
+          {
+            "node": "Call Kesha - Assess & Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Kesha - Assess & Match": {
+      "main": [
+        [
+          {
+            "node": "Finalize Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Assessment": {
+      "main": [
+        [
+          {
+            "node": "Notify Francis - Send to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-05T00:00:00.000Z",
+  "versionId": "1"
+}

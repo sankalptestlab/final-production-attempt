@@ -1,0 +1,1414 @@
+{
+  "name": "Loan Origination - 7 Phase Master Workflow TESTER",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "5ea986c4-9141-4908-8e68-d657ffdad45e",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "89324a3e-a217-43ae-90fc-9d0a115cbb0b",
+      "name": "Webhook - Chat Input",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        2896,
+        1776
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "5ea986c4-9141-4908-8e68-d657ffdad45e"
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "customer_id",
+              "stringValue": "={{ $json.body.customer_id }}"
+            },
+            {
+              "name": "channel",
+              "stringValue": "={{ $json.body.channel }}"
+            },
+            {
+              "name": "message",
+              "stringValue": "={{ $json.body.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d21909f4-629d-4c09-877e-e121725d321f",
+      "name": "Extract Customer ID",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        3120,
+        1776
+      ],
+      "typeVersion": 3.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "48895b0c-ff37-45cb-aa37-2f977d566c64",
+      "name": "Final Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        5808,
+        1920
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *,\n  message_history->-1->>'content' as latest_message\nFROM conversations\nWHERE customer_id = $1\n  AND status = 'active'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "f48541b4-42c8-462a-9754-c0e448d9c996",
+      "name": "Load Conversation State",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        3568,
+        1776
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $('Load Conversation State').item.json.id !== undefined }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "a286aa5a-9c23-43b9-84b6-2b1c1464560b",
+      "name": "Check Existing Conversation",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3792,
+        1776
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (\n  id, customer_id, channel, current_phase,\n  current_question_index, status, responses,\n  created_at, updated_at, last_message_at\n)\nVALUES (\n  uuid_generate_v4(), $1, $2, 'intake',\n  0, 'active', '{}'::jsonb,\n  NOW(), NOW(), NOW()\n)\nON CONFLICT (customer_id, status) \nDO UPDATE SET \n  updated_at = NOW(),\n  last_message_at = NOW()\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer ID').item.json.customer_id }},={{ $('Extract Customer ID').item.json.channel }}"
+        }
+      },
+      "id": "99cfc6ca-65b7-48a8-8681-0ccf8895e683",
+      "name": "Create New Conversation",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        4016,
+        1920
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "or",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "intake",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "new",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "verification",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "gap_filling",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "assessment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "lender_matching",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "explanation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {},
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.current_phase }}",
+                    "rightValue": "documents",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7a4e8d2c-43fa-4978-b8c7-d09e6ee7c852",
+      "name": "Phase Router",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        4240,
+        1760
+      ],
+      "typeVersion": 3,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/extract-intent",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Webhook - Chat Input').item.json.body.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9b530410-00e7-4ee1-9ed4-860d31d61327",
+      "name": "P1 - Extract Intent (MCP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4912,
+        1264
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET \n  responses = jsonb_set(COALESCE(responses, '{}'::jsonb), '{extracted_intent}', $1::jsonb),\n  current_phase = 'verification',\n  updated_at = NOW()\nWHERE id = $2::uuid\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('P1 - Extract Intent (MCP)').item.json.intent) }},{{ $('Phase Router').item.json.id }}"
+        }
+      },
+      "id": "ee336044-c8cd-4ebf-b2d6-bcf042b415c6",
+      "name": "P1 - Save Intent to DB",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        5136,
+        1264
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/verify-gst",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"gst_number\": \"09AADCF8429L1Z4\"\n}",
+        "options": {}
+      },
+      "id": "921171cc-af6b-47e4-8e03-ce6dc51d8da2",
+      "name": "P2 - Verify GST (MCP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4464,
+        1456
+      ],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/parse-gst-report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ report: $('P2 - Verify GST (MCP)').item.json }) }}",
+        "options": {}
+      },
+      "id": "b6d8ccd6-941a-421b-96e0-cbb3cc2b8bb0",
+      "name": "P2 - Parse GST Report (MCP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4688,
+        1456
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO leads (\n  conversation_id, business_name, gst_number, pan_number,\n  annual_turnover, credit_score_numeric,\n  loan_amount, loan_purpose, stage, created_at\n)\nVALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, 'verification', NOW())\nON CONFLICT (gst_number) \nDO UPDATE SET\n  conversation_id = EXCLUDED.conversation_id,\n  business_name = EXCLUDED.business_name,\n  updated_at = NOW()\nRETURNING *;",
+        "options": {
+          "queryReplacement": "=={{ $('Phase Router').item.json.id }},={{ $('P2 - Verify GST (MCP)').item.json.business_name }},={{ $('P2 - Verify GST (MCP)').item.json.gst_number }},={{ $('P2 - Verify GST (MCP)').item.json.pan_number }},={{ $('P2 - Verify GST (MCP)').item.json.annual_turnover }},={{ $('P2 - Parse GST Report (MCP)').item.json.credit_score_numeric }},={{ $('Phase Router').item.json.responses.extracted_intent.loan_amount }},={{ $('Phase Router').item.json.responses.extracted_intent.loan_purpose }}"
+        }
+      },
+      "id": "20ee654a-6996-4bee-8445-44ae6f06f722",
+      "name": "P2 - Create Lead Record",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        4912,
+        1456
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const requiredFields = ['collateral_available', 'tenure_months'];\nconst missing = requiredFields.filter(f => !$input.item.json[f]);\nconst jsonData = $input.item.json;\nreturn [{json: {has_missing: missing.length > 0, missing_fields: missing, ...jsonData}}];"
+      },
+      "id": "8dd7933c-e9b7-4da5-8b52-846cebe3a61e",
+      "name": "P3 - Check Missing Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4912,
+        1648
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations \nSET \n  responses = jsonb_set(COALESCE(responses, '{}'::jsonb), '{gap_data}', $1::jsonb), \n  current_phase = 'assessment',\n  updated_at = NOW()\nWHERE customer_id = $2\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({message: $json.message}) }},={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "60e25c1c-7da1-47e4-8ce9-a3074fc5da38",
+      "name": "P3 - Save Gap Responses",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        5136,
+        1648
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/calculate-eligibility",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"business_data\": {{ JSON.stringify($json) }}\n}",
+        "options": {}
+      },
+      "id": "aafca4d6-2e9c-49a2-b407-6c59779bd605",
+      "name": "P4 - Calculate Eligibility (MCP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4688,
+        1840
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE leads\nSET \n  assessment_results = $1::jsonb,\n  stage = 'assessed',\n  updated_at = NOW()\nWHERE conversation_id = $2::uuid\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('P4 - Calculate Eligibility (MCP)').item.json) }},={{ $('Phase Router').item.json.id }}"
+        }
+      },
+      "id": "8f45ee79-8cd4-48d8-8aea-9e4051c4a2a5",
+      "name": "P4 - Save Assessment",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        4912,
+        1840
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lenders = $input.item.json.lenders || [];\nconst ranked = lenders.map(l => {\n  const lenderData = l;\n  return {\n    ...lenderData,\n    expectedValue: (l.commission || 0) * (l.approval_probability || 0.5),\n    approvalProb: l.approval_probability || 0.5\n  };\n}).sort((a, b) => b.expectedValue - a.expectedValue);\nreturn [{json: {recommended: ranked[0], alternatives: ranked.slice(1, 3), all_lenders: ranked}}];"
+      },
+      "id": "24053543-00cd-41b2-b23c-9ba91a867f9a",
+      "name": "P5 - AI Optimize Lenders",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4912,
+        2032
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE leads\nSET \n  lender_recommendation = $1::jsonb,\n  stage = 'recommended',\n  updated_at = NOW()\nWHERE conversation_id = $2::uuid\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('P5 - AI Optimize Lenders').item) }},acc0943d-8627-4fd8-a9cf-9adf1e840790"
+        }
+      },
+      "id": "190c0f20-302b-45b1-b6cc-600bcdbab65a",
+      "name": "P5 - Save Recommendation",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        5136,
+        2032
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/explain-decision",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"assessment\": {{ JSON.stringify($('Phase Router').item.json.responses) }},\n  \"recommendation\": \"Bajaj Finserv recommended\"\n}",
+        "options": {}
+      },
+      "id": "0e0c2324-0d8e-4fe3-bde9-7595b953a7da",
+      "name": "P6 - Claude Explanation",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4912,
+        2224
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations \nSET \n  responses = jsonb_set(COALESCE(responses, '{}'::jsonb), '{explanation}', $1::jsonb), \n  current_phase = 'documents',\n  updated_at = NOW()\nWHERE customer_id = $2\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({text: $json.content[0].text}) }},={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "2cc824df-85c7-4fdd-9907-24a388dc330f",
+      "name": "P6 - Save Explanation",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        5136,
+        2224
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "11277775-115f-45b4-a0dc-19e2b9b2c043",
+      "name": "P7 - Generate Document Checklist",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        4912,
+        2416
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations \nSET \n  status = 'completed', \n  current_phase = 'completed',\n  updated_at = NOW()\nWHERE customer_id = $1\nRETURNING *;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "73e87fbd-bca2-4b72-8331-23ea6ffcc486",
+      "name": "P7 - Mark Complete",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        5136,
+        2416
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "be0f4762-1bfd-4c0a-80c6-4606f84baedd",
+      "name": "Merge All Phases",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        5360,
+        1920
+      ],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const phase = $input.item.json.current_phase || 'intake';\nconst jsonData = $input.item.json;\nconst messages = {\n  intake: 'Great! I can help you with that loan application. Could you please provide your GST number?',\n  verification: 'Thank you! Verified your business details. Now, could you please provide your PAN number?',\n  gap_filling: 'I need a bit more information. Do you have collateral available? What loan tenure do you prefer?',\n  assessment: 'Processing your credit assessment...',\n  lender_matching: 'Finding the best lender for you...',\n  explanation: jsonData.explanation || 'Your loan has been processed.',\n  documents: 'Great! Please upload: ' + (jsonData.documents || []).join(', ')\n};\nreturn [{json: {success: true, message: messages[phase], customer_id: jsonData.customer_id || $('Extract Customer ID').item.json.customer_id, phase: phase, data: jsonData}}];"
+      },
+      "id": "60b2bae6-9b1e-4dcc-9989-0c10e3f2c438",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5584,
+        1920
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message",
+              "name": "message",
+              "value": "={{ $('Extract Customer ID').item.json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "customer_id",
+              "name": "customer_id",
+              "value": "={{ $('Extract Customer ID').item.json.customer_id }}",
+              "type": "string"
+            },
+            {
+              "id": "channel",
+              "name": "channel",
+              "value": "={{ $('Extract Customer ID').item.json.channel }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4016,
+        1632
+      ],
+      "id": "357eb706-b01b-4ca8-9218-2276d1f297eb",
+      "name": "Enrich Context"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations\nSET \n  message_history = COALESCE(message_history, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(\n    'timestamp', NOW(),\n    'role', 'user',\n    'content', $1,\n    'phase', current_phase,\n    'sequence', COALESCE(jsonb_array_length(message_history), 0) + 1,\n    'channel', $2\n  )),\n  last_message_at = NOW(),\n  updated_at = NOW()\nWHERE customer_id = $3\n  AND status = 'active'\nRETURNING *, message_history->-1->>'content' as latest_message;",
+        "options": {
+          "queryReplacement": "={{ $('Extract Customer ID').item.json.message }},={{ $('Extract Customer ID').item.json.channel }},={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "808332c3-b475-4549-882b-8ba9cfd0ac60",
+      "name": "Append Message to History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3344,
+        1776
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "additionalFields": {}
+      },
+      "id": "e2eb94aa-d20d-430e-8f13-a7e7919e0b1b",
+      "name": "P2 - Update Phase",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        1456
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations \nSET current_phase = 'lender_matching', updated_at = NOW()\nWHERE customer_id = $1 AND status = 'active'\nRETURNING *;",
+        "additionalFields": {
+          "queryParams": "={{ $('Extract Customer ID').item.json.customer_id }}"
+        }
+      },
+      "id": "e656a751-5fee-4a96-96f2-a8b0b158b671",
+      "name": "P4 - Update Phase",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        1840
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, product_name, interest_rate_min, interest_rate_max,\n       commission_structure, approval_rate_avg\nFROM lenders\nWHERE active = true\nLIMIT 3;",
+        "additionalFields": {}
+      },
+      "id": "37d57a16-11bc-4d5b-b842-aa5e5299b96b",
+      "name": "P5 - Get Lender Database (MCP)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        4688,
+        2032
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "074b72fd-d6ea-47e7-a7c4-4c130e7e4873",
+      "name": "When Called by Parent Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2896,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://loan-origination-mcp.onrender.com/api/extract-intent",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d4ec5a0-fc74-472d-8d89-310b7c95fe0d",
+      "name": "Extract Intent from Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE conversations SET responses = jsonb_set(COALESCE(responses, '{}'::jsonb), '{extracted_intent}', $1::jsonb), current_phase = 'verification', updated_at = NOW() WHERE id = $2::uuid RETURNING *;",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($('Extract Intent from Message').item.json.intent) }},={{ $json.conversation_id }}"
+        }
+      },
+      "id": "c172d9e2-4ff3-4441-8457-a6c9815026a9",
+      "name": "Save Intent to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3344,
+        1040
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "k2KibTvMAADHd7io",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "BACKEND NIKITA",
+        "height": 1776,
+        "width": 1152
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4224,
+        1056
+      ],
+      "typeVersion": 1,
+      "id": "69c54f7e-ce25-4672-ad04-96982a1f71b7",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "FRONTEND FRANCIS",
+        "height": 1120,
+        "width": 1312,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2848,
+        1232
+      ],
+      "typeVersion": 1,
+      "id": "bafae561-c081-46f9-9293-5968cf081032",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "FRONT END FRACIS",
+        "height": 1104,
+        "width": 448,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5504,
+        1232
+      ],
+      "typeVersion": 1,
+      "id": "d6295eb8-977e-432d-8925-6b4edd464835",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "width": 1024,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4288,
+        1248
+      ],
+      "typeVersion": 1,
+      "id": "0fa26638-e47c-4708-9463-104155821be5",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "NIKITA TASK",
+        "height": 144,
+        "width": 1024,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4288,
+        1456
+      ],
+      "typeVersion": 1,
+      "id": "312cab2a-1fb8-4df6-ae48-dae82efc86f9",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4432,
+        1056
+      ],
+      "id": "a5473667-c786-44f0-a91f-b8b942d0fbea",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "NIKITA TASK",
+        "width": 1024,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4288,
+        2400
+      ],
+      "id": "77574459-9599-4de7-b049-92d9c0ce5e2e",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "KESHA TASK",
+        "width": 992,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        2016
+      ],
+      "id": "a33963e2-0c3e-46ac-9440-7e44b92ea990",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "content": "KESHA TASK",
+        "width": 992,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        1824
+      ],
+      "id": "07b5d7e2-7e5f-44b3-87ad-fb0ba3db1bcc",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "KESHA TASK",
+        "width": 992,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        2208
+      ],
+      "id": "851ab3c7-c3cd-42d1-8b03-99c4e25b71e3",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "content": "NIKITA TASK",
+        "width": 1024,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4288,
+        1632
+      ],
+      "id": "115d395c-70e6-4b6e-b4d6-ca1597de1bad",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "content": "Francis tasks:\n\nFrancis is the front end sales man. His tasks include the following:\n\n1) Customer makes contact with Francis - all information delivered to the customer happens from Francis \n2) Francis hands off information to Nikita and Kesha in real time, this includes intent, requirement, GST number and verification, and also CONSENT\n3) Francis receives usable information from Kesha and Nikita in the form of value adds to the customer, such as a request for more documents, a request for more information to understand the kind of requirement to tailor the solution as best as possible, to offer a report or a path forward towards that debt\n4) Francis writes into a DB, Nikita and Kesha can only read that DB. It is the source of truth for the state, and for basic information (PAN AADHAR GST CONSENTS STATE)\n5) Nikita and Kesha are writing into their own DB, able to read data from Francis (never accessing PII) They produce documents and information for Francis to communicate to the customer AND formatted documents to be sent to banks and NBFCs\n6) THIS INFORMATION NEEDS TO BE TRACKED SO THAT ALL HAVE ACCESS TO IT ( SENT TO BANK, AWAITING RESPONSE, CONFIRMED, DISBURSED, DOCUMENTS PENDING ETC) ",
+        "height": 752,
+        "width": 752,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2848,
+        2448
+      ],
+      "id": "26095f5e-c492-4327-8b57-1fd04b49c27e",
+      "name": "Sticky Note11"
+    },
+    {
+      "parameters": {
+        "content": "NIKITA TASKS\n\n1) A document person. This means running GST information, running verification, running all calls that need to be made to turn the GST + PAN + Aadhar into actual CAM will be the main task on the ingestion end - making them available to Kesha on one side and Francis on another is the data sharing part of the task. \n2) Nikita will also be responsible for document preparation on the bank side, that is to say, she will know all formats, she will be responsible for producing the documentation in that format, and tracking this information in the STATE DB etc\n3) Nikita will check that the documentation is complete for both sides of the process. This means referencing loan type against the documents required for that loan from the various supported lenders, and storing this information in a DB so that Francis can get it from the customer\n",
+        "height": 816,
+        "width": 896,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        2656
+      ],
+      "id": "06b2a41e-14f0-49cf-bdb7-303d24010163",
+      "name": "Sticky Note12"
+    },
+    {
+      "parameters": {
+        "content": "KESHA TASKS\n1) Kesha deals with Credit. Expects to find information in her DB, and will not work without it. When she receives the loan requirement, and all relevant data from the DB (put there by Nikita) she first verifies that everything needed is there. Then updates a docs verified by Kesha column\n2) Kesha uses the CAM and queries the documents for any information. She provides a recommendation, a reason for the recommendation, and a report for the customer with actionable steps (how to improve credit) and provides questions for Francis to ask (understand customer better) \n3) Kesha provides an estimate of what lender is likely to do the transaction - and a recommendation basis commission\n4) ",
+        "height": 816,
+        "width": 896,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5392,
+        2656
+      ],
+      "id": "af09d1fa-998f-491a-900a-9b6d7bdcb336",
+      "name": "Sticky Note13"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Phase Router": {
+      "main": [
+        [
+          {
+            "node": "P1 - Extract Intent (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P2 - Verify GST (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P3 - Check Missing Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P4 - Calculate Eligibility (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P6 - Claude Explanation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "P5 - Get Lender Database (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P7 - Generate Document Checklist",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "P6 - Claude Explanation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "P7 - Generate Document Checklist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Phases": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P7 - Mark Complete": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customer ID": {
+      "main": [
+        [
+          {
+            "node": "Append Message to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P4 - Save Assessment": {
+      "main": [
+        [
+          {
+            "node": "P4 - Update Phase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Chat Input": {
+      "main": [
+        [
+          {
+            "node": "Extract Customer ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P2 - Verify GST (MCP)": {
+      "main": [
+        [
+          {
+            "node": "P2 - Parse GST Report (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P6 - Save Explanation": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P1 - Save Intent to DB": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Conversation": {
+      "main": [
+        [
+          {
+            "node": "Phase Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Conversation State": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P3 - Check Missing Data": {
+      "main": [
+        [
+          {
+            "node": "P3 - Save Gap Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P3 - Save Gap Responses": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P6 - Claude Explanation": {
+      "main": [
+        [
+          {
+            "node": "P6 - Save Explanation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P5 - AI Optimize Lenders": {
+      "main": [
+        [
+          {
+            "node": "P5 - Save Recommendation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P5 - Save Recommendation": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P1 - Extract Intent (MCP)": {
+      "main": [
+        [
+          {
+            "node": "P1 - Save Intent to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Conversation": {
+      "main": [
+        [
+          {
+            "node": "Enrich Context",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Phase Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create New Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P2 - Parse GST Report (MCP)": {
+      "main": [
+        [
+          {
+            "node": "P2 - Create Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P4 - Calculate Eligibility (MCP)": {
+      "main": [
+        [
+          {
+            "node": "P4 - Save Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P7 - Generate Document Checklist": {
+      "main": [
+        [
+          {
+            "node": "P7 - Mark Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Message to History": {
+      "main": [
+        [
+          {
+            "node": "Load Conversation State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P4 - Update Phase": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P5 - Get Lender Database (MCP)": {
+      "main": [
+        [
+          {
+            "node": "P5 - AI Optimize Lenders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P2 - Create Lead Record": {
+      "main": [
+        [
+          {
+            "node": "P2 - Update Phase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "P2 - Update Phase": {
+      "main": [
+        [
+          {
+            "node": "Merge All Phases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Called by Parent Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extract Intent from Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Intent from Message": {
+      "main": [
+        [
+          {
+            "node": "Save Intent to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "a519832f-f050-4a72-a0b6-23689f5e8cbd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c39b0a3500427155b201112e3583deb85ee90bc93fb15f25e2a5e2f07af6ef5c"
+  },
+  "id": "d9lm1dbMy43WseBH",
+  "tags": []
+}
