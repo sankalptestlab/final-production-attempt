@@ -27,7 +27,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8001/famescore-report",
+        "url": "https://data-services-mcp.onrender.com/famescore-report",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -58,7 +58,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8001/pull-credit-bureau",
+        "url": "https://data-services-mcp.onrender.com/pull-credit-bureau",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -89,7 +89,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8001/lookup-gst-basic",
+        "url": "https://data-services-mcp.onrender.com/verify-gst",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -112,7 +112,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8001/lookup-udyam",
+        "url": "https://data-services-mcp.onrender.com/lookup-udyam",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -156,7 +156,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8002/build-cam",
+        "url": "https://nikita-mcp.onrender.com/build-cam",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -217,7 +217,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8003/assess",
+        "url": "https://kesha-mcp.onrender.com/assess",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
@@ -274,7 +274,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:8000/receive-assessment",
+        "url": "https://francis-mcp.onrender.com/receive-assessment",
         "method": "POST",
         "sendBody": true,
         "bodyParameters": {
