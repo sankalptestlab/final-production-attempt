@@ -19,7 +19,7 @@ services:
           type: web
           property: host
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.0"
     healthCheckPath: /health
 
   # Data Services MCP - External API Gateway (Port 8001)
@@ -32,7 +32,7 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.0"
     healthCheckPath: /health
 
   # Nikita MCP - CAM Assembly (Port 8002)
@@ -50,7 +50,7 @@ services:
           type: web
           property: host
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.0"
     healthCheckPath: /health
 
   # Kesha MCP - Credit Assessment (Port 8003)
@@ -73,5 +73,5 @@ services:
           type: web
           property: host
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.11.0"
     healthCheckPath: /health
