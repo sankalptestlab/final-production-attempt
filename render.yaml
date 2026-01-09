@@ -1,0 +1,77 @@
+# Render Blueprint for MSME Loan Origination System
+# Deploy all 4 MCP services
+
+services:
+  # Francis MCP - Customer Interface (Port 8000)
+  - type: web
+    name: francis-mcp
+    runtime: python
+    plan: free
+    rootDir: services/francis-mcp
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATA_SERVICES_URL
+        fromService:
+          name: data-services-mcp
+          type: web
+          property: host
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /health
+
+  # Data Services MCP - External API Gateway (Port 8001)
+  - type: web
+    name: data-services-mcp
+    runtime: python
+    plan: free
+    rootDir: services/data-services-mcp
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /health
+
+  # Nikita MCP - CAM Assembly (Port 8002)
+  - type: web
+    name: nikita-mcp
+    runtime: python
+    plan: free
+    rootDir: services/nikita-mcp
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATA_SERVICES_URL
+        fromService:
+          name: data-services-mcp
+          type: web
+          property: host
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /health
+
+  # Kesha MCP - Credit Assessment (Port 8003)
+  - type: web
+    name: kesha-mcp
+    runtime: python
+    plan: free
+    rootDir: services/kesha-mcp
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATA_SERVICES_URL
+        fromService:
+          name: data-services-mcp
+          type: web
+          property: host
+      - key: NIKITA_MCP_URL
+        fromService:
+          name: nikita-mcp
+          type: web
+          property: host
+      - key: PYTHON_VERSION
+        value: "3.11"
+    healthCheckPath: /health
