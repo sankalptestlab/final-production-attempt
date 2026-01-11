@@ -27,9 +27,18 @@ def get_supabase_client():
             return None
 
         try:
-            from supabase import create_client
+            from supabase import create_client, Client
             _supabase_client = create_client(supabase_url, supabase_key)
             logger.info("Supabase client initialized successfully")
+        except TypeError as te:
+            # Try alternative initialization for newer versions
+            try:
+                from supabase._sync.client import SyncClient
+                _supabase_client = SyncClient(supabase_url, supabase_key)
+                logger.info("Supabase client initialized with SyncClient")
+            except Exception as e2:
+                logger.error(f"Failed to initialize Supabase client: {e2}")
+                return None
         except Exception as e:
             logger.error(f"Failed to initialize Supabase client: {e}")
             return None
