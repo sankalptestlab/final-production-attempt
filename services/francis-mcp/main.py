@@ -15,6 +15,10 @@ import anthropic
 import os
 import re
 import uuid
+import json
+
+# Import database module
+import database as db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -307,6 +311,25 @@ async def process_message(context: ConversationContext):
 
         logger.info(f"Processing message for conversation: {context.conversation_id}")
 
+        # Load existing conversation state from database
+        existing_state = db.get_conversation_state(context.conversation_id)
+        if existing_state:
+            # Merge existing extracted data with context
+            existing_data = existing_state.get("extracted_data", {})
+            context.conversation_summary = f"Previous data: GST={existing_data.get('gst_number')}, PAN={existing_data.get('pan_number')}, Amount={existing_data.get('loan_amount')}"
+            context.current_phase = existing_state.get("current_phase", "intake")
+            logger.info(f"Loaded existing conversation state: {context.conversation_summary}")
+        else:
+            # Create new conversation in database
+            db.get_or_create_conversation(
+                context.conversation_id,
+                context.customer_id,
+                context.channel
+            )
+
+        # Save user message to history
+        db.append_message(context.conversation_id, "user", context.message)
+
         # Process with Claude (or fallback)
         if os.environ.get("ANTHROPIC_API_KEY"):
             result = await process_with_claude(context)
@@ -314,8 +337,40 @@ async def process_message(context: ConversationContext):
             logger.warning("No Anthropic API key, using fallback processing")
             result = fallback_processing(context)
 
-        # Build response
-        extracted_data = ExtractedData(**result.get("extracted", {}))
+        # Merge extracted data with existing data
+        new_extracted = result.get("extracted", {})
+        if existing_state:
+            existing_data = existing_state.get("extracted_data", {}) or {}
+            # Only update fields that have new values
+            for key, value in new_extracted.items():
+                if value is not None:
+                    existing_data[key] = value
+            merged_data = existing_data
+        else:
+            merged_data = new_extracted
+
+        # Save assistant response to history
+        db.append_message(context.conversation_id, "assistant", result["response"])
+
+        # Update conversation state in database
+        db.update_conversation(
+            context.conversation_id,
+            extracted_data=merged_data,
+            current_phase=context.current_phase
+        )
+
+        # Save any new consents
+        for consent in result.get("consents", []):
+            db.save_consent(
+                context.conversation_id,
+                context.customer_id,
+                consent["type"],
+                consent["granted"],
+                consent.get("method", "explicit_yes")
+            )
+
+        # Build response with merged data
+        extracted_data = ExtractedData(**merged_data)
 
         consents_obtained = [
             ConsentRecord(
