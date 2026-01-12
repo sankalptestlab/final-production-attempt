@@ -257,14 +257,15 @@
             let messageContent = `<div class="message-content">${content}`;
 
             if (extracted && !isUser) {
-                if (extracted.gstin) {
-                    messageContent += `<div class="extracted-info">✅ GST: ${extracted.gstin}</div>`;
+                if (extracted.gst_number || extracted.gstin) {
+                    messageContent += `<div class="extracted-info">✅ GST: ${extracted.gst_number || extracted.gstin}</div>`;
                 }
-                if (extracted.pan) {
-                    messageContent += `<div class="extracted-info">✅ PAN: ${extracted.pan}</div>`;
+                if (extracted.pan_number || extracted.pan) {
+                    messageContent += `<div class="extracted-info">✅ PAN: ${extracted.pan_number || extracted.pan}</div>`;
                 }
-                if (extracted.loan_amount_lakhs) {
-                    messageContent += `<div class="extracted-info">✅ Amount: ₹${extracted.loan_amount_lakhs}L</div>`;
+                if (extracted.loan_amount || extracted.loan_amount_lakhs) {
+                    const amount = extracted.loan_amount ? (extracted.loan_amount / 100000) : extracted.loan_amount_lakhs;
+                    messageContent += `<div class="extracted-info">✅ Amount: ₹${amount}L</div>`;
                 }
                 if (extracted.consent_obtained) {
                     messageContent += `<div class="extracted-info">✅ Credit Bureau Consent: Granted</div>`;
