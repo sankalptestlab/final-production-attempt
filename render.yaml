@@ -1,8 +1,9 @@
 # Render Blueprint for MSME Loan Origination System
-# Deploy all 4 MCP services
+# Deploy all 4 MCP services + Web Interface
+# Usage: Connect this repo to Render and it will auto-deploy
 
 services:
-  # Francis MCP - Customer Interface (Port 8000)
+  # Francis MCP - Customer Interface
   - type: web
     name: francis-mcp
     runtime: python
@@ -13,16 +14,30 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
       - key: DATA_SERVICES_URL
         fromService:
           name: data-services-mcp
           type: web
-          property: host
+          property: hostport
+      - key: NIKITA_MCP_URL
+        fromService:
+          name: nikita-mcp
+          type: web
+          property: hostport
+      - key: KESHA_MCP_URL
+        fromService:
+          name: kesha-mcp
+          type: web
+          property: hostport
       - key: PYTHON_VERSION
         value: "3.11.0"
     healthCheckPath: /health
 
-  # Data Services MCP - External API Gateway (Port 8001)
+  # Data Services MCP - External API Gateway
   - type: web
     name: data-services-mcp
     runtime: python
@@ -35,7 +50,7 @@ services:
         value: "3.11.0"
     healthCheckPath: /health
 
-  # Nikita MCP - CAM Assembly (Port 8002)
+  # Nikita MCP - CAM Assembly
   - type: web
     name: nikita-mcp
     runtime: python
@@ -44,16 +59,20 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
       - key: DATA_SERVICES_URL
         fromService:
           name: data-services-mcp
           type: web
-          property: host
+          property: hostport
       - key: PYTHON_VERSION
         value: "3.11.0"
     healthCheckPath: /health
 
-  # Kesha MCP - Credit Assessment (Port 8003)
+  # Kesha MCP - Credit Assessment
   - type: web
     name: kesha-mcp
     runtime: python
@@ -62,16 +81,20 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
       - key: DATA_SERVICES_URL
         fromService:
           name: data-services-mcp
           type: web
-          property: host
+          property: hostport
       - key: NIKITA_MCP_URL
         fromService:
           name: nikita-mcp
           type: web
-          property: host
+          property: hostport
       - key: PYTHON_VERSION
         value: "3.11.0"
     healthCheckPath: /health

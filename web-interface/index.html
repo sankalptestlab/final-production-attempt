@@ -232,8 +232,13 @@
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
 
-        // Configuration
-        const FRANCIS_API_URL = 'http://localhost:8000';
+        // Configuration - Auto-detect production vs local
+        // For production on Render, update this URL after deployment
+        const FRANCIS_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : 'https://francis-mcp.onrender.com';  // UPDATE THIS after Render deployment
+
+        console.log('Using API URL:', FRANCIS_API_URL);
         let conversationId = generateUUID();
         let customerId = generateUUID();
 
@@ -252,14 +257,17 @@
             let messageContent = `<div class="message-content">${content}`;
 
             if (extracted && !isUser) {
-                if (extracted.gst_number) {
-                    messageContent += `<div class="extracted-info">✅ GST: ${extracted.gst_number}</div>`;
+                if (extracted.gstin) {
+                    messageContent += `<div class="extracted-info">✅ GST: ${extracted.gstin}</div>`;
                 }
-                if (extracted.pan_number) {
-                    messageContent += `<div class="extracted-info">✅ PAN: ${extracted.pan_number}</div>`;
+                if (extracted.pan) {
+                    messageContent += `<div class="extracted-info">✅ PAN: ${extracted.pan}</div>`;
                 }
-                if (extracted.loan_amount) {
-                    messageContent += `<div class="extracted-info">✅ Amount: ₹${extracted.loan_amount}L</div>`;
+                if (extracted.loan_amount_lakhs) {
+                    messageContent += `<div class="extracted-info">✅ Amount: ₹${extracted.loan_amount_lakhs}L</div>`;
+                }
+                if (extracted.consent_obtained) {
+                    messageContent += `<div class="extracted-info">✅ Credit Bureau Consent: Granted</div>`;
                 }
             }
 
