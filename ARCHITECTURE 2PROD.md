@@ -1,9 +1,40 @@
 # Loan Origination System - Production Architecture
 
 ## Document Version
-- **Version**: 1.0
-- **Last Updated**: January 2025
-- **Status**: Draft for Review
+- **Version**: 1.1
+- **Last Updated**: January 2026
+- **Status**: MVP Complete - Demo Ready
+
+---
+
+## Current Implementation Status
+
+### Overall Progress: ~75% Complete
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Francis MCP** | Deployed | Conversation, extraction, consent working |
+| **Data Services MCP** | Deployed | Mock data only - real APIs pending |
+| **Nikita MCP** | Deployed | CAM assembly working |
+| **Kesha MCP** | Deployed | Lender matching working (5 lenders) |
+| **Supabase Database** | Deployed | All tables created, data persisting |
+| **n8n Orchestration** | Configured | Workflow designed, full integration pending |
+| **Web Interface** | Working | Basic chat UI functional |
+| **WhatsApp Channel** | Not Started | Planned for Phase 2 |
+| **Real API Integrations** | Not Started | Using mock data |
+
+### Service URLs (Production)
+| Service | URL | Health |
+|---------|-----|--------|
+| Francis MCP | https://francis-mcp.onrender.com | `/health` |
+| Data Services MCP | https://data-services-mcp.onrender.com | `/health` |
+| Nikita MCP | https://nikita-mcp.onrender.com | `/health` |
+| Kesha MCP | https://kesha-mcp.onrender.com | `/health` |
+
+### Known Limitations (Free Tier)
+- Render services spin down after 15 min inactivity (30-60s cold start)
+- Rate limits on Claude API
+- Mock data instead of real GST/Credit Bureau APIs
 
 ---
 
@@ -1226,37 +1257,75 @@ alerts:
 
 ---
 
-## 10. Migration Plan from Current State
+## 10. Implementation Status & Remaining Work
 
-### Phase 1: Database & Schema (Week 1)
-1. Create new tables with proper schema
-2. Migrate existing `conversations` and `leads` data
-3. Set up `kesha_cam_view` for PII isolation
+### Completed (MVP)
 
-### Phase 2: Data Services Extraction (Week 2)
-1. Extract GST/PAN/Bureau calls to `data-services-mcp`
-2. Implement retry logic and caching
-3. Test with current workflow
+#### Phase 1: Database & Schema
+- [x] Create new tables with proper schema
+- [x] Set up `kesha_cam_view` for PII isolation
+- [x] Seed lenders table with 5 initial lenders
+- [x] Supabase deployment and connection
 
-### Phase 3: Nikita Refactor (Week 3)
-1. Build CAM assembly logic based on FameScore schema
-2. Implement parallel data collection in n8n
-3. Create bank format templates
+#### Phase 2: Data Services
+- [x] Create `data-services-mcp` service
+- [x] Implement mock FameScore report generation
+- [x] Implement mock GST/PAN/Bureau endpoints
+- [ ] Real API integrations (FameScore, CIBIL, etc.)
+- [ ] Retry logic and caching
 
-### Phase 4: Kesha Implementation (Week 4)
-1. Build lender matching algorithm
-2. Implement customer report generation
-3. Connect to anonymized CAM view
+#### Phase 3: Nikita (CAM Assembly)
+- [x] Build CAM assembly logic based on FameScore schema
+- [x] Implement validation and flags
+- [x] Calculate eligibility metrics
+- [ ] Parallel data collection via n8n
+- [ ] Bank-specific format templates
 
-### Phase 5: Francis Enhancement (Week 5)
-1. Add consent capture flow
-2. Implement qualifying questions
-3. Connect report delivery
+#### Phase 4: Kesha (Credit Intelligence)
+- [x] Build lender matching algorithm
+- [x] Implement customer report generation
+- [x] Connect to anonymized CAM view
+- [x] Eligibility scoring
+- [ ] Commission tracking
 
-### Phase 6: Integration & Testing (Week 6)
-1. End-to-end testing
-2. Load testing (5 concurrent)
-3. Regulatory compliance review
+#### Phase 5: Francis (Customer Interface)
+- [x] Conversation with Claude AI
+- [x] GST/PAN extraction and validation
+- [x] Consent capture flow
+- [x] Qualifying questions
+- [ ] Report delivery integration
+- [ ] WhatsApp channel
+
+#### Phase 6: Integration
+- [x] Render deployment (all 4 services)
+- [x] Basic web interface
+- [x] Health checks working
+- [ ] Full n8n workflow integration
+- [ ] End-to-end automated testing
+- [ ] Load testing
+
+### Remaining Work (Post-MVP)
+
+#### Priority 1: Production Readiness
+1. Real GST API integration
+2. Real credit bureau integration (CIBIL/Experian)
+3. n8n workflow full implementation
+4. Error handling and retry logic
+5. Security audit
+
+#### Priority 2: Scale
+1. WhatsApp channel integration
+2. Bank statement parsing
+3. Additional lenders (target: 20+)
+4. Performance optimization
+5. Paid Render tier (always-on)
+
+#### Priority 3: Enhancement
+1. Multilingual support (Hindi, Tamil)
+2. Voice input processing
+3. Mobile app (React Native)
+4. Analytics dashboard
+5. White-label capability
 
 ---
 
@@ -1305,5 +1374,58 @@ alerts:
 
 ---
 
+---
+
+## Appendix C: Demo Guide
+
+### Quick Start (Investor Demo)
+
+#### 1. Warm Up Services (30 seconds before demo)
+```bash
+curl -s https://francis-mcp.onrender.com/health & \
+curl -s https://data-services-mcp.onrender.com/health & \
+curl -s https://nikita-mcp.onrender.com/health & \
+curl -s https://kesha-mcp.onrender.com/health & wait
+```
+
+#### 2. Demo Flow Script
+Open `web-interface/index.html` in browser and follow this conversation:
+
+**You say:** "Hi, I need a 50 lakh business loan for working capital"
+- *Shows:* AI extracts loan amount (Rs 50L) and purpose (working capital)
+
+**You say:** "My GST is 07ABCDE1234F1Z5"
+- *Shows:* System validates and extracts 15-digit GST number
+
+**You say:** "PAN is ABCDE1234F"
+- *Shows:* System validates and extracts 10-character PAN
+
+**You say:** "Yes, I consent to the credit bureau check"
+- *Shows:* Consent captured with timestamp, triggers CAM build
+
+**System processes and returns:**
+- Eligibility: HIGH
+- Max Amount: Rs 48-50L
+- Top Lender: HDFC Bank @ 11-14%
+- Alternative options with approval probabilities
+
+#### 3. Key Demo Points
+- **AI-Powered:** Claude understands natural language, extracts structured data
+- **Compliance:** Explicit consent capture before credit pull
+- **PII Isolation:** Kesha never sees raw GST/PAN, only derived metrics
+- **Multi-Lender:** Matches to 5 lenders, ranked by customer preference
+- **Instant Assessment:** Full eligibility in under 60 seconds
+
+#### 4. API Demo (for technical audience)
+```bash
+# Single command that shows full flow
+curl -s -X POST https://francis-mcp.onrender.com/process-message \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"web","message":"I need 50L for working capital. GST 07ABCDE1234F1Z5, PAN ABCDE1234F. Yes I consent."}' \
+  | python3 -m json.tool
+```
+
+---
+
 *Document maintained by: Architecture Team*
-*Next review: [Date]*
+*Last Updated: January 2026*
