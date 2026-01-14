@@ -54,10 +54,14 @@ class ConversationContext(BaseModel):
     current_phase: str = "intake"
 
 class ExtractedData(BaseModel):
-    gst_number: Optional[str] = None
-    pan_number: Optional[str] = None
-    loan_amount: Optional[float] = None
+    gstin: Optional[str] = None
+    pan: Optional[str] = None
+    loan_amount_lakhs: Optional[float] = None
     loan_purpose: Optional[str] = None
+    tenure_months: Optional[int] = None
+    collateral_available: Optional[bool] = None
+    customer_priority: Optional[str] = None
+    consent_obtained: Optional[bool] = None
 
 class ConsentRecord(BaseModel):
     type: str
@@ -156,7 +160,7 @@ Previous Context: {context.conversation_summary or 'This is the first message'}
 
 Analyze this message and provide:
 1. A warm, helpful response to the customer
-2. Any data extracted (GST, PAN, loan amount, purpose)
+2. Any data extracted (GST, PAN, loan amount, purpose, tenure, collateral, priority)
 3. Any consents obtained (credit_bureau, lender_sharing, communication)
 4. Any questions answered (collateral, tenure, priority)
 5. What action to take next (trigger_cam_build if all data collected, request_document if missing info, none otherwise)
@@ -166,10 +170,14 @@ Respond in JSON format:
 {{
     "response": "Your message to customer",
     "extracted": {{
-        "gst_number": "if found",
-        "pan_number": "if found",
-        "loan_amount": number or null,
-        "loan_purpose": "if mentioned"
+        "gstin": "15-char GSTIN if found",
+        "pan": "10-char PAN if found",
+        "loan_amount_lakhs": number or null,
+        "loan_purpose": "Working Capital/Term Loan/Equipment Finance if mentioned",
+        "tenure_months": number or null,
+        "collateral_available": true/false or null,
+        "customer_priority": "low_interest/quick_disbursement/low_emi or null",
+        "consent_obtained": true if credit bureau consent given
     }},
     "consents": [
         {{"type": "credit_bureau", "granted": true/false, "method": "explicit_yes"}}
@@ -230,15 +238,15 @@ def fallback_processing(context: ConversationContext) -> Dict[str, Any]:
     extracted = {}
     gstin = extract_gstin(context.message)
     if gstin:
-        extracted["gst_number"] = gstin
+        extracted["gstin"] = gstin
 
     pan = extract_pan(context.message)
     if pan:
-        extracted["pan_number"] = pan
+        extracted["pan"] = pan
 
     amount = extract_amount(message)
     if amount:
-        extracted["loan_amount"] = amount
+        extracted["loan_amount_lakhs"] = amount
 
     # Check for consent keywords
     consents = []
@@ -259,19 +267,19 @@ def fallback_processing(context: ConversationContext) -> Dict[str, Any]:
             answers["collateral_available"] = "no"
 
     # Determine response
-    if not extracted.get("gst_number"):
+    if not extracted.get("gstin"):
         response = "Thank you for reaching out! To help you with a business loan, I'll need your GST number. Could you please share your 15-digit GSTIN?"
         next_action = "none"
         next_questions = ["GST number"]
-    elif not extracted.get("pan_number"):
-        response = f"Great, I've noted your GST number ({extracted['gst_number']}). I'll also need your company's PAN number. Could you share that?"
+    elif not extracted.get("pan"):
+        response = f"Great, I've noted your GST number ({extracted['gstin']}). I'll also need your company's PAN number. Could you share that?"
         next_action = "none"
         next_questions = ["PAN number"]
     elif not consents:
         response = "Perfect! To assess your eligibility, I need your permission to check your credit bureau report. This is a standard requirement by RBI. The report will help us find the best loan options for you. May I proceed with the credit check?"
         next_action = "none"
         next_questions = ["Credit bureau consent"]
-    elif not extracted.get("loan_amount"):
+    elif not extracted.get("loan_amount_lakhs"):
         response = "Thank you for the consent! How much loan amount are you looking for? Please mention in lakhs (e.g., 50 lakhs)."
         next_action = "none"
         next_questions = ["Loan amount"]
@@ -316,7 +324,7 @@ async def process_message(context: ConversationContext):
         if existing_state:
             # Merge existing extracted data with context
             existing_data = existing_state.get("extracted_data", {})
-            context.conversation_summary = f"Previous data: GST={existing_data.get('gst_number')}, PAN={existing_data.get('pan_number')}, Amount={existing_data.get('loan_amount')}"
+            context.conversation_summary = f"Previous data: GSTIN={existing_data.get('gstin')}, PAN={existing_data.get('pan')}, Amount={existing_data.get('loan_amount_lakhs')}L, Consent={existing_data.get('consent_obtained')}"
             context.current_phase = existing_state.get("current_phase", "intake")
             logger.info(f"Loaded existing conversation state: {context.conversation_summary}")
         else:

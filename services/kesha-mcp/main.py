@@ -145,7 +145,8 @@ def get_max_dpd(credit_profile: Dict[str, Any]) -> int:
     facilities = credit_profile.get("existing_facilities", [])
     if not facilities:
         return 0
-    return max((f.get("dpd_days", 0) for f in facilities), default=0)
+    # Support both dpd_days and overdue_days field names
+    return max((f.get("dpd_days", 0) or f.get("overdue_days", 0) for f in facilities), default=0)
 
 def calculate_approval_probability(
     lender_criteria: Dict[str, Any],

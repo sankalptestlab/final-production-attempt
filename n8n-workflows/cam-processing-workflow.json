@@ -54,7 +54,8 @@
       "name": "Call FameScore API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [650, 200]
+      "position": [650, 200],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -64,16 +65,16 @@
         "bodyParameters": {
           "parameters": [
             {
-              "name": "pan",
+              "name": "entity_pan",
               "value": "={{ $json.pan }}"
+            },
+            {
+              "name": "promoter_pans",
+              "value": "[]"
             },
             {
               "name": "consent_obtained",
               "value": "={{ $json.consent_obtained }}"
-            },
-            {
-              "name": "bureau_type",
-              "value": "commercial"
             }
           ]
         },
@@ -85,7 +86,8 @@
       "name": "Call Commercial Credit Bureau",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [650, 300]
+      "position": [650, 300],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -108,7 +110,8 @@
       "name": "GST Basic Lookup",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [650, 400]
+      "position": [650, 400],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -131,7 +134,8 @@
       "name": "Udyam Lookup",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
-      "position": [650, 500]
+      "position": [650, 500],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -146,7 +150,7 @@
     },
     {
       "parameters": {
-        "functionCode": "// Combine all data sources into Nikita request format\nconst originalParams = $input.item(0).json;\nconst fameScoreData = $input.item(1).json.data || {};\nconst creditBureauData = $input.item(2).json.data || {};\nconst gstData = $input.item(3).json.data || {};\nconst udyamData = $input.item(4).json.data || {};\n\nreturn {\n  json: {\n    conversation_id: originalParams.conversation_id,\n    customer_id: originalParams.customer_id,\n    famescore_report: fameScoreData,\n    credit_bureau: creditBureauData,\n    gst_data: gstData,\n    udyam_data: udyamData,\n    loan_request: {\n      amount_lakhs: originalParams.loan_amount_lakhs,\n      purpose: originalParams.loan_purpose,\n      tenure_months: originalParams.tenure_months,\n      collateral_available: originalParams.collateral_available\n    },\n    customer_preferences: {\n      priority: originalParams.customer_priority,\n      lender_preference: \"any\"\n    }\n  }\n};"
+        "functionCode": "// Combine all data sources into Nikita request format\n// Access merged data - items contain results from parallel API calls\nconst items = $input.all();\n\n// Find the data from each source by checking for specific keys\nlet fameScoreData = {};\nlet creditBureauData = {};\nlet gstData = {};\nlet udyamData = {};\nlet originalParams = {};\n\nfor (const item of items) {\n  const data = item.json;\n  if (data.conversation_id) {\n    originalParams = data;\n  } else if (data.data && data.data.entity_information) {\n    fameScoreData = data.data;\n  } else if (data.data && data.data.commercial) {\n    creditBureauData = data.data;\n  } else if (data.data && data.data.gstin) {\n    gstData = data.data;\n  } else if (data.data && data.data.udyam_number) {\n    udyamData = data.data;\n  }\n}\n\n// Build gst_data in the format Nikita expects (from FameScore report)\nconst nikitaGstData = {\n  entity_information: fameScoreData.entity_information || {},\n  bank_details: fameScoreData.bank_details || [],\n  gst_sales_data: fameScoreData.gst_sales_data || {},\n  gst_purchase_data: fameScoreData.gst_purchase_data || {},\n  compliance: fameScoreData.compliance || {},\n  bank_limit_eligibility: fameScoreData.bank_limit_eligibility || {}\n};\n\n// Build credit_bureau in the format Nikita expects\nconst nikitaCreditBureau = {\n  commercial: fameScoreData.credit_bureau_commercial || creditBureauData.commercial || {},\n  consumer: fameScoreData.credit_bureau_consumer || creditBureauData.consumer || {},\n  existing_facilities: fameScoreData.existing_facilities || creditBureauData.existing_facilities || [],\n  closed_loans: fameScoreData.closed_loans || creditBureauData.closed_loans || []\n};\n\n// Build pan_data from FameScore\nconst nikitaPanData = {\n  pan: fameScoreData.entity_information?.pan || originalParams.pan,\n  name: fameScoreData.entity_information?.legal_name,\n  status: 'active',\n  category: 'company'\n};\n\n// Build customer_inputs in the format Nikita expects\nconst customerInputs = {\n  loan_amount_requested: originalParams.loan_amount_lakhs,\n  loan_purpose: originalParams.loan_purpose,\n  loan_purpose_description: '',\n  tenure_preference_months: originalParams.tenure_months || 36,\n  collateral_available: originalParams.collateral_available || false,\n  collateral_type: 'none',\n  collateral_value: 0,\n  priority: originalParams.customer_priority || 'low_interest',\n  urgency: '2_weeks'\n};\n\nreturn {\n  json: {\n    conversation_id: originalParams.conversation_id,\n    gst_data: nikitaGstData,\n    pan_data: nikitaPanData,\n    credit_bureau: nikitaCreditBureau,\n    bank_statements: fameScoreData.sales_to_banking_credit ? {\n      total_credits_lakhs: fameScoreData.bank_limit_eligibility?.total_12_month_sales || 0,\n      bank_to_turnover_ratio: 1.0,\n      inward_bounces: 0,\n      outward_bounces: 0,\n      average_monthly_balance_lakhs: 5.5\n    } : null,\n    udyam_data: fameScoreData.udyam_registration || udyamData || null,\n    itr_data: fameScoreData.itr_data || null,\n    customer_inputs: customerInputs\n  }\n};"
       },
       "id": "format-nikita-request",
       "name": "Format Nikita Request",
@@ -159,42 +163,8 @@
         "url": "https://nikita-mcp.onrender.com/build-cam",
         "method": "POST",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "conversation_id",
-              "value": "={{ $json.conversation_id }}"
-            },
-            {
-              "name": "customer_id",
-              "value": "={{ $json.customer_id }}"
-            },
-            {
-              "name": "famescore_report",
-              "value": "={{ JSON.stringify($json.famescore_report) }}"
-            },
-            {
-              "name": "credit_bureau",
-              "value": "={{ JSON.stringify($json.credit_bureau) }}"
-            },
-            {
-              "name": "gst_data",
-              "value": "={{ JSON.stringify($json.gst_data) }}"
-            },
-            {
-              "name": "udyam_data",
-              "value": "={{ JSON.stringify($json.udyam_data) }}"
-            },
-            {
-              "name": "loan_request",
-              "value": "={{ JSON.stringify($json.loan_request) }}"
-            },
-            {
-              "name": "customer_preferences",
-              "value": "={{ JSON.stringify($json.customer_preferences) }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {
           "timeout": 30000
         }
@@ -207,7 +177,7 @@
     },
     {
       "parameters": {
-        "functionCode": "// Save CAM to database\nconst camData = $input.item.json;\n\n// In production, this would be a Supabase node\n// For now, return the cam_id for the next step\nreturn {\n  json: {\n    cam_id: camData.cam_id,\n    cam_data: camData.cam_data,\n    conversation_id: camData.conversation_id\n  }\n};"
+        "functionCode": "// Save CAM to database and prepare for Kesha\nconst camResponse = $input.item.json;\nconst camData = camResponse.cam_data || {};\n\n// Transform CAM data to Kesha's AnonymizedCAM format\nconst keshaPayload = {\n  cam_id: camResponse.cam_id,\n  conversation_id: camResponse.conversation_id || camData.conversation_id,\n  \n  // business_profile mapping\n  business_profile: {\n    industry_sector: camData.business_profile?.industry_sector || 'IT_services',\n    nic_code: camData.business_profile?.nic_code || 'NIC 224',\n    years_in_business: camData.business_profile?.years_in_business || 3,\n    vintage_years: camData.business_profile?.years_in_business || 3,\n    employee_count: camData.business_profile?.employee_count || 50,\n    enterprise_type: camData.business_profile?.enterprise_type || 'micro'\n  },\n  \n  // financial_metrics mapping (from financial_summary)\n  financial_metrics: {\n    annual_turnover_lakhs: camData.financial_summary?.turnover?.annual_lakhs || 0,\n    monthly_average_lakhs: camData.financial_summary?.turnover?.monthly_average_lakhs || 0,\n    turnover_growth_yoy: (camData.financial_summary?.turnover?.growth_yoy_pct || 0) / 100,\n    profit_margin: (camData.financial_summary?.profitability?.net_profit_margin_pct || 0) / 100,\n    net_profit_lakhs: camData.financial_summary?.profitability?.net_profit_lakhs || 0,\n    bank_to_turnover_ratio: camData.financial_summary?.banking_behavior?.bank_to_turnover_ratio || 1.0\n  },\n  \n  // credit_profile mapping\n  credit_profile: {\n    commercial_score: camData.credit_profile?.commercial_bureau?.score || 'CMR-5',\n    total_outstanding_lakhs: camData.credit_profile?.commercial_bureau?.total_outstanding_lakhs || 0,\n    overdue_amount_lakhs: camData.credit_profile?.commercial_bureau?.overdue_amount_lakhs || 0,\n    active_loans_count: camData.credit_profile?.commercial_bureau?.active_loans || 0,\n    existing_facilities: camData.credit_profile?.existing_facilities || [],\n    utilization_pct: 0.5\n  },\n  \n  // compliance mapping (from compliance_status)\n  compliance: {\n    filing_consistency: camData.compliance_status?.gst?.filing_consistency || 0.84,\n    delayed_filings_count: camData.compliance_status?.gst?.delayed_filings_count || 0,\n    itr_filed_on_time: camData.compliance_status?.itr?.filed_on_time || true\n  },\n  \n  // loan_request mapping\n  loan_request: camData.loan_request || {},\n  \n  // customer_preferences mapping\n  customer_preferences: camData.customer_preferences || {}\n};\n\nreturn {\n  json: {\n    cam_id: camResponse.cam_id,\n    cam_data: camData,\n    conversation_id: keshaPayload.conversation_id,\n    kesha_payload: keshaPayload\n  }\n};"
       },
       "id": "save-cam-db",
       "name": "Save CAM to Database",
@@ -220,38 +190,8 @@
         "url": "https://kesha-mcp.onrender.com/assess",
         "method": "POST",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "cam_id",
-              "value": "={{ $json.cam_id }}"
-            },
-            {
-              "name": "business_profile",
-              "value": "={{ JSON.stringify($json.cam_data.business_profile) }}"
-            },
-            {
-              "name": "financial_metrics",
-              "value": "={{ JSON.stringify($json.cam_data.financial_summary) }}"
-            },
-            {
-              "name": "credit_profile",
-              "value": "={{ JSON.stringify($json.cam_data.credit_profile) }}"
-            },
-            {
-              "name": "compliance",
-              "value": "={{ JSON.stringify($json.cam_data.compliance) }}"
-            },
-            {
-              "name": "loan_request",
-              "value": "={{ JSON.stringify($json.cam_data.loan_request) }}"
-            },
-            {
-              "name": "customer_preferences",
-              "value": "={{ JSON.stringify($json.cam_data.customer_preferences) }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.kesha_payload) }}",
         "options": {
           "timeout": 30000
         }
@@ -314,6 +254,33 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Error handler - notify Francis about workflow failure\nconst error = $input.item.json.error || 'Unknown error occurred';\nconst conversation_id = $execution.customData?.conversation_id || 'unknown';\n\nreturn {\n  json: {\n    conversation_id: conversation_id,\n    assessment_id: 'error',\n    overall_eligibility: 'error',\n    max_eligible_amount: 0,\n    top_lenders: [],\n    customer_report: {\n      summary: 'We encountered an issue processing your application. Our team has been notified and will contact you shortly.',\n      error_details: error,\n      next_steps: ['Our team will review your application manually', 'You will receive an update within 24 hours']\n    }\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1850, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://francis-mcp.onrender.com/receive-assessment",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "notify-francis-error",
+      "name": "Notify Francis - Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 500]
     }
   ],
   "connections": {
@@ -348,6 +315,11 @@
           },
           {
             "node": "Udyam Lookup",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge All Data Sources",
             "type": "main",
             "index": 0
           }
@@ -463,11 +435,23 @@
           }
         ]
       ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Notify Francis - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {},
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "Handle Error"
   },
   "staticData": null,
   "tags": [],

@@ -37,11 +37,12 @@ app.add_middleware(
 # Import and include routers
 # Each router is a separate file - can be updated independently
 try:
-    from routes import health, conversation, assessment
+    from routes import health, conversation, assessment, loan_application
 
     app.include_router(health.router)
     app.include_router(conversation.router)
     app.include_router(assessment.router)
+    app.include_router(loan_application.router, prefix="/loan")
 
     logger.info("All routes loaded successfully")
 except ImportError as e:
