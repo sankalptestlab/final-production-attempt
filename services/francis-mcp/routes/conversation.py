@@ -161,9 +161,12 @@ async def process_message(request: MessageRequest):
         # Update conversation
         conversations[request.conversation_id] = conv
 
+        # Final safeguard: ensure customer_id is never None
+        final_customer_id = request.customer_id or conv.get("customer_id") or str(uuid.uuid4())
+
         return MessageResponse(
             conversation_id=request.conversation_id,
-            customer_id=request.customer_id,
+            customer_id=final_customer_id,
             response_to_customer=response_text,
             extracted_data=extracted_data,
             current_phase=conv["phase"],

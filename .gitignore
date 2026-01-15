@@ -80,3 +80,7 @@ services/*/logs/
 *.tmp
 *.bak
 *.swp
+
+# Node.js
+node_modules/
+**/node_modules/
