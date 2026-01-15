@@ -13,6 +13,7 @@ import uuid
 from utils.extraction import extract_gstin, extract_pan, extract_amount
 from utils.claude_client import process_with_claude
 from config import FRANCIS_SYSTEM_PROMPT
+from database import get_or_create_conversation, update_conversation, save_consent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Conversation"])
@@ -52,26 +53,37 @@ async def process_message(request: MessageRequest):
         if not request.conversation_id:
             request.conversation_id = str(uuid.uuid4())
             request.customer_id = str(uuid.uuid4())
-            conversations[request.conversation_id] = {
-                "messages": [],
-                "extracted_data": {},
-                "phase": "intake",
-                "customer_id": request.customer_id,
-                "created_at": datetime.now().isoformat()
-            }
             logger.info(f"New conversation created: {request.conversation_id}")
-
-        conv = conversations.get(request.conversation_id, {
-            "messages": [],
-            "extracted_data": {},
-            "phase": "intake",
-            "customer_id": request.customer_id or str(uuid.uuid4())
-        })
 
         # Ensure customer_id is set
         if not request.customer_id:
-            request.customer_id = conv.get("customer_id", str(uuid.uuid4()))
-            conv["customer_id"] = request.customer_id
+            request.customer_id = str(uuid.uuid4())
+
+        # Try to get/create conversation in database
+        db_conv = get_or_create_conversation(
+            conversation_id=request.conversation_id,
+            customer_id=request.customer_id,
+            channel=request.channel
+        )
+
+        # Use database data if available, otherwise use in-memory fallback
+        if db_conv:
+            conv = {
+                "messages": db_conv.get("message_history", []) or [],
+                "extracted_data": db_conv.get("extracted_data", {}) or {},
+                "phase": db_conv.get("current_phase", "intake"),
+                "customer_id": db_conv.get("customer_id", request.customer_id)
+            }
+            request.customer_id = conv["customer_id"]
+        else:
+            # Fallback to in-memory if database unavailable
+            conv = conversations.get(request.conversation_id, {
+                "messages": [],
+                "extracted_data": {},
+                "phase": "intake",
+                "customer_id": request.customer_id
+            })
+            conversations[request.conversation_id] = conv
 
         # Add user message to history
         conv["messages"].append({
@@ -104,6 +116,14 @@ async def process_message(request: MessageRequest):
             if "credit bureau" in conv["messages"][-2]["content"].lower() if len(conv["messages"]) > 1 else False:
                 extracted_data["consent_obtained"] = True
                 logger.info("Credit bureau consent obtained")
+                # Save consent to database
+                save_consent(
+                    conversation_id=request.conversation_id,
+                    customer_id=request.customer_id,
+                    consent_type="credit_bureau",
+                    granted=True,
+                    method="explicit_yes"
+                )
 
         # Extract loan details
         if "working capital" in request.message.lower():
@@ -158,8 +178,16 @@ async def process_message(request: MessageRequest):
             conv["phase"] = "building"
             logger.info(f"All required data collected, triggering CAM build")
 
-        # Update conversation
+        # Update conversation in memory
         conversations[request.conversation_id] = conv
+
+        # Persist to database
+        update_conversation(
+            conversation_id=request.conversation_id,
+            extracted_data=extracted_data,
+            current_phase=conv["phase"],
+            message_history=conv["messages"]
+        )
 
         # Final safeguard: ensure customer_id is never None
         final_customer_id = request.customer_id or conv.get("customer_id") or str(uuid.uuid4())
