@@ -21,20 +21,11 @@ services:
       - key: N8N_WEBHOOK_URL
         sync: false
       - key: DATA_SERVICES_URL
-        fromService:
-          name: data-services-mcp
-          type: web
-          property: hostport
+        value: "https://data-services-mcp.onrender.com"
       - key: NIKITA_MCP_URL
-        fromService:
-          name: nikita-mcp
-          type: web
-          property: hostport
+        value: "https://nikita-mcp.onrender.com"
       - key: KESHA_MCP_URL
-        fromService:
-          name: kesha-mcp
-          type: web
-          property: hostport
+        value: "https://kesha-mcp.onrender.com"
       - key: PYTHON_VERSION
         value: "3.11.0"
     healthCheckPath: /health
