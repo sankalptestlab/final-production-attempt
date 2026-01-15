@@ -12,6 +12,8 @@ import uuid
 import httpx
 import os
 
+from database import get_or_create_conversation, update_conversation, save_consent, get_supabase_client
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Loan Application"])
 
@@ -72,8 +74,37 @@ async def submit_loan_application(request: LoanApplicationRequest):
     """
     application_id = str(uuid.uuid4())
     conversation_id = str(uuid.uuid4())
+    customer_id = str(uuid.uuid4())
 
     logger.info(f"New loan application: {application_id}, GSTIN: {request.gstin}")
+
+    # Create conversation record in database
+    get_or_create_conversation(
+        conversation_id=conversation_id,
+        customer_id=customer_id,
+        channel="web"
+    )
+
+    # Save consents
+    if request.consent_credit_bureau:
+        save_consent(conversation_id, customer_id, "credit_bureau", True, "form_submission")
+    if request.consent_data_sharing:
+        save_consent(conversation_id, customer_id, "data_sharing", True, "form_submission")
+
+    # Update with extracted data
+    update_conversation(
+        conversation_id=conversation_id,
+        extracted_data={
+            "gstin": request.gstin,
+            "pan": request.pan,
+            "loan_amount_lakhs": request.loan_amount_lakhs,
+            "loan_purpose": request.loan_purpose,
+            "tenure_months": request.tenure_months,
+            "collateral_available": request.has_collateral,
+            "customer_priority": request.priority
+        },
+        current_phase="processing"
+    )
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -232,6 +263,12 @@ async def submit_loan_application(request: LoanApplicationRequest):
                     requirements=match.get("requirements", [])
                 ))
 
+            # Update conversation as assessed
+            update_conversation(
+                conversation_id=conversation_id,
+                current_phase="assessed"
+            )
+
             return LoanApplicationResponse(
                 application_id=application_id,
                 conversation_id=conversation_id,
@@ -277,3 +314,32 @@ async def get_application_status(application_id: str):
         "status": "assessment_complete",
         "message": "Your application has been assessed. View results in your dashboard."
     }
+
+
+@router.get("/debug/db-status")
+async def debug_db_status():
+    """Check database connection status"""
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    supabase_key = os.environ.get("SUPABASE_KEY", "")
+
+    status = {
+        "supabase_url_set": bool(supabase_url),
+        "supabase_key_set": bool(supabase_key),
+        "supabase_url_prefix": supabase_url[:30] + "..." if len(supabase_url) > 30 else supabase_url,
+        "client_initialized": False,
+        "can_query": False,
+        "error": None
+    }
+
+    try:
+        client = get_supabase_client()
+        if client:
+            status["client_initialized"] = True
+            # Try a simple query
+            result = client.table("conversations").select("id").limit(1).execute()
+            status["can_query"] = True
+            status["sample_count"] = len(result.data) if result.data else 0
+    except Exception as e:
+        status["error"] = str(e)
+
+    return status
