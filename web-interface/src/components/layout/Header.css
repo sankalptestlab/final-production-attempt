@@ -1,0 +1,129 @@
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    padding: var(--space-4) 0;
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    transition: background var(--transition-normal), border var(--transition-normal);
+}
+
+.header--transparent {
+    background: transparent;
+    border-bottom-color: transparent;
+}
+
+.header__nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+}
+
+.header__logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    text-decoration: none;
+}
+
+.header__logo-icon {
+    font-size: var(--text-2xl);
+}
+
+.header__logo-text {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.header--transparent .header__logo-text {
+    color: var(--white);
+}
+
+.header__links {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+}
+
+.header__link {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--gray-600);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.header__link:hover {
+    color: var(--gray-900);
+}
+
+.header--transparent .header__link {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.header--transparent .header__link:hover {
+    color: var(--white);
+}
+
+.header__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.header__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+    border: none;
+}
+
+.header__btn--ghost {
+    color: var(--gray-600);
+    background: transparent;
+}
+
+.header__btn--ghost:hover {
+    color: var(--gray-900);
+    background: var(--gray-100);
+}
+
+.header--transparent .header__btn--ghost {
+    color: var(--white);
+}
+
+.header--transparent .header__btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.header__btn--primary {
+    color: var(--white);
+    background: var(--primary-600);
+}
+
+.header__btn--primary:hover {
+    background: var(--primary-700);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .header__links {
+        display: none;
+    }
+
+    .header__btn--ghost {
+        display: none;
+    }
+}

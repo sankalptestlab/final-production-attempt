@@ -1,0 +1,116 @@
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: var(--font-body);
+    font-weight: 500;
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+/* Sizes */
+.btn--sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+}
+
+.btn--md {
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--text-base);
+}
+
+.btn--lg {
+    padding: var(--space-4) var(--space-8);
+    font-size: var(--text-lg);
+}
+
+/* Variants */
+.btn--primary {
+    background: var(--primary-600);
+    color: var(--white);
+    box-shadow: var(--shadow-md);
+}
+
+.btn--primary:hover:not(:disabled) {
+    background: var(--primary-700);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn--secondary {
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+}
+
+.btn--secondary:hover:not(:disabled) {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+}
+
+.btn--ghost {
+    background: transparent;
+    color: var(--gray-600);
+}
+
+.btn--ghost:hover:not(:disabled) {
+    background: var(--gray-100);
+    color: var(--gray-900);
+}
+
+.btn--accent {
+    background: var(--gradient-accent);
+    color: var(--gray-900);
+    font-weight: 600;
+}
+
+.btn--accent:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Full Width */
+.btn--full {
+    width: 100%;
+}
+
+/* Disabled */
+.btn--disabled,
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Loading */
+.btn--loading {
+    position: relative;
+    color: transparent !important;
+}
+
+.btn__spinner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn__icon {
+    display: flex;
+    align-items: center;
+    font-size: 1.1em;
+}

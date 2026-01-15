@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSME Loan Assistant - Test Chat</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #2563eb;
+            color: white;
+            padding: 16px 20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header p { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        .message.user {
+            background: #2563eb;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant {
+            background: white;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .message.system {
+            background: #fef3c7;
+            color: #92400e;
+            align-self: center;
+            font-size: 12px;
+            padding: 8px 16px;
+        }
+        .message.error {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+        }
+        .typing span {
+            width: 8px;
+            height: 8px;
+            background: #999;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing span:nth-child(1) { animation-delay: -0.32s; }
+        .typing span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        .input-area {
+            background: white;
+            padding: 16px 20px;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            gap: 12px;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+        }
+        .input-area input:focus { border-color: #2563eb; }
+        .input-area button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .input-area button:hover { background: #1d4ed8; }
+        .input-area button:disabled { background: #93c5fd; cursor: not-allowed; }
+        .quick-actions {
+            padding: 12px 20px;
+            background: white;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .quick-actions button {
+            background: #f3f4f6;
+            border: 1px solid #e5e5e5;
+            padding: 8px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .quick-actions button:hover { background: #e5e7eb; }
+        .status-bar {
+            background: #1e40af;
+            color: white;
+            padding: 8px 20px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .status-dot.online { background: #22c55e; }
+        .status-dot.offline { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MSME Loan Assistant</h1>
+        <p>Test Interface - Connected to Francis MCP</p>
+    </div>
+
+    <div class="status-bar">
+        <span><span class="status-dot" id="statusDot"></span><span id="statusText">Checking...</span></span>
+        <span id="conversationId">No active conversation</span>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="message system">Welcome! Start by saying hello or asking about a business loan.</div>
+    </div>
+
+    <div class="quick-actions">
+        <button onclick="sendQuick('I need a business loan of 50 lakhs')">Request 50L Loan</button>
+        <button onclick="sendQuick('My GSTIN is 09AADCF8429L1Z4')">Share GSTIN</button>
+        <button onclick="sendQuick('My PAN is AADCF8429L')">Share PAN</button>
+        <button onclick="sendQuick('Yes, I consent')">Give Consent</button>
+        <button onclick="newConversation()">New Chat</button>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        const API_URL = 'https://francis-mcp.onrender.com';
+        let conversationId = null;
+        let isLoading = false;
+
+        // Check API health on load
+        async function checkHealth() {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            try {
+                const res = await fetch(`${API_URL}/health`, { timeout: 10000 });
+                if (res.ok) {
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Connected to Francis MCP';
+                } else {
+                    throw new Error('Not healthy');
+                }
+            } catch (e) {
+                dot.className = 'status-dot offline';
+                text.textContent = 'Service unavailable - may be waking up...';
+            }
+        }
+
+        function addMessage(content, type) {
+            const container = document.getElementById('chatContainer');
+            const msg = document.createElement('div');
+            msg.className = `message ${type}`;
+            msg.textContent = content;
+            container.appendChild(msg);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTyping() {
+            const container = document.getElementById('chatContainer');
+            const typing = document.createElement('div');
+            typing.className = 'message assistant typing';
+            typing.id = 'typingIndicator';
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            container.appendChild(typing);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || isLoading) return;
+
+            input.value = '';
+            addMessage(message, 'user');
+
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+            showTyping();
+
+            try {
+                const res = await fetch(`${API_URL}/process-message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        conversation_id: conversationId,
+                        channel: 'web'
+                    })
+                });
+
+                hideTyping();
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`API error: ${res.status} - ${errText}`);
+                }
+
+                const data = await res.json();
+
+                // Update conversation ID
+                if (data.conversation_id) {
+                    conversationId = data.conversation_id;
+                    document.getElementById('conversationId').textContent = `ID: ${conversationId.slice(0, 8)}...`;
+                }
+
+                // Show response
+                addMessage(data.response_to_customer || data.response || data.message || 'No response', 'assistant');
+
+                // Show assessment if available
+                if (data.assessment) {
+                    const a = data.assessment;
+                    addMessage(
+                        `Assessment: ${a.overall_eligibility} eligibility, up to ₹${a.max_eligible_amount_lakhs}L, ` +
+                        `${a.lender_matches?.length || 0} lender matches`,
+                        'system'
+                    );
+                }
+
+            } catch (e) {
+                hideTyping();
+                addMessage(`Error: ${e.message}`, 'error');
+            } finally {
+                isLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+            }
+        }
+
+        function sendQuick(text) {
+            document.getElementById('messageInput').value = text;
+            sendMessage();
+        }
+
+        function newConversation() {
+            conversationId = null;
+            document.getElementById('conversationId').textContent = 'No active conversation';
+            document.getElementById('chatContainer').innerHTML = '<div class="message system">New conversation started. How can I help you?</div>';
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // Initialize
+        checkHealth();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>

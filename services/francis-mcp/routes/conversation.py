@@ -56,6 +56,7 @@ async def process_message(request: MessageRequest):
                 "messages": [],
                 "extracted_data": {},
                 "phase": "intake",
+                "customer_id": request.customer_id,
                 "created_at": datetime.now().isoformat()
             }
             logger.info(f"New conversation created: {request.conversation_id}")
@@ -63,8 +64,14 @@ async def process_message(request: MessageRequest):
         conv = conversations.get(request.conversation_id, {
             "messages": [],
             "extracted_data": {},
-            "phase": "intake"
+            "phase": "intake",
+            "customer_id": request.customer_id or str(uuid.uuid4())
         })
+
+        # Ensure customer_id is set
+        if not request.customer_id:
+            request.customer_id = conv.get("customer_id", str(uuid.uuid4()))
+            conv["customer_id"] = request.customer_id
 
         # Add user message to history
         conv["messages"].append({
