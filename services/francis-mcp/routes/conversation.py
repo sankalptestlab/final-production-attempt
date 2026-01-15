@@ -125,13 +125,22 @@ async def process_message(request: MessageRequest):
                     method="explicit_yes"
                 )
 
-        # Extract loan details
-        if "working capital" in request.message.lower():
+        # Extract loan details - more flexible matching
+        msg_lower = request.message.lower()
+        if "working capital" in msg_lower:
             extracted_data["loan_purpose"] = "Working Capital"
-        elif "term loan" in request.message.lower():
+        elif "term loan" in msg_lower:
             extracted_data["loan_purpose"] = "Term Loan"
-        elif "equipment" in request.message.lower():
+        elif "equipment" in msg_lower or "machinery" in msg_lower:
             extracted_data["loan_purpose"] = "Equipment Finance"
+        elif any(kw in msg_lower for kw in ["expansion", "expand", "growing", "growth", "scale"]):
+            extracted_data["loan_purpose"] = "Business Expansion"
+        elif any(kw in msg_lower for kw in ["inventory", "stock", "purchase"]):
+            extracted_data["loan_purpose"] = "Inventory Finance"
+        elif any(kw in msg_lower for kw in ["renovation", "upgrade", "improve"]):
+            extracted_data["loan_purpose"] = "Business Renovation"
+        elif any(kw in msg_lower for kw in ["business", "general", "operations"]):
+            extracted_data["loan_purpose"] = "Business Operations"
 
         # Extract tenure
         if "36" in request.message or "three year" in request.message.lower():
