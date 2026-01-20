@@ -38,6 +38,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include loan application routes
+from routes import loan_application
+app.include_router(loan_application.router, prefix="/loan-application")
+
 # Initialize Anthropic client
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
