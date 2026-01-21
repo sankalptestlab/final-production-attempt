@@ -110,6 +110,15 @@ def extract_amount(text: str) -> Optional[float]:
         if match:
             return float(match.group(1)) * multiplier
 
+    # Fallback: If user just types a number, assume it's in lakhs
+    # This handles responses like "50", "60", "25" when asked for loan amount
+    plain_number = re.search(r'^[\s]*(\d+(?:\.\d+)?)[\s]*$', text.strip())
+    if plain_number:
+        amount = float(plain_number.group(1))
+        # Reasonable loan amount range: 1-500 lakhs
+        if 1 <= amount <= 500:
+            return amount
+
     return None
 
 FRANCIS_SYSTEM_PROMPT = """You are Francis, a helpful loan advisor for MSME businesses in India. Your role is to:
