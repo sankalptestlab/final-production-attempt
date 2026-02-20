@@ -1,0 +1,218 @@
+version: '3.8'
+
+services:
+  # Francis - Conversational AI (Port 8000)
+  francis:
+    build:
+      context: ./services/francis
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - DATA_SERVICES_URL=http://data-services:8001
+      - NIKITA_MCP_URL=http://nikita:8002
+      - KESHA_MCP_URL=http://kesha:8003
+      - TRACKER_URL=http://tracker:8008
+      - DATA_QUALITY_URL=http://data-quality:8009
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://web-interface:80}
+    depends_on:
+      - data-services
+      - nikita
+      - kesha
+      - tracker
+      - data-quality
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Data Services - External API Gateway (Port 8001)
+  data-services:
+    build:
+      context: ./services/data-services
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nikita - CAM Builder (Port 8002)
+  nikita:
+    build:
+      context: ./services/nikita
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kesha - Credit Assessor (Port 8003)
+  kesha:
+    build:
+      context: ./services/kesha
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Tracker - Application Lifecycle Tracking (Port 8008)
+  tracker:
+    build:
+      context: ./services/tracker
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8008"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Data Quality - Validation & Anomaly Detection (Port 8009)
+  data-quality:
+    build:
+      context: ./services/data-quality
+      dockerfile: Dockerfile
+    ports:
+      - "8009:8009"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Document Validator - OCR & Document Verification (Port 8004)
+  document-validator:
+    build:
+      context: ./services/document-validator
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Compliance - DPDP Act, RBI Guidelines, Fraud Detection (Port 8005)
+  compliance:
+    build:
+      context: ./services/compliance
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Lender Hub - Unified Lender Gateway (Port 8006)
+  lender-hub:
+    build:
+      context: ./services/lender-hub
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - TRACKER_URL=http://tracker:8008
+    networks:
+      - loan-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # n8n - Workflow Orchestration (Port 5678)
+
+  # n8n - Workflow Orchestration (Port 5678)
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:?N8N_PASSWORD must be set in .env file}
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      - N8N_SECURE_COOKIE=true
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - loan-network
+
+  # Web Interface - React Frontend (Port 3000)
+  web-interface:
+    build:
+      context: ./web-interface
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - francis
+    networks:
+      - loan-network
+
+networks:
+  loan-network:
+    driver: bridge
+
+volumes:
+  n8n_data:
